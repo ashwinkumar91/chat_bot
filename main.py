@@ -302,18 +302,20 @@ class Model:
         errors = [];
         correct = [];
         for i, (t, p) in enumerate(zip(y_true, y_pred)):
-#             errors.append((i, self.lb.classes_[p]))
-            if t != p:
-                errors.append((i, self.lb.classes_[p]))
-        return metrics.f1_score(y_true, y_pred, average='weighted', pos_label=None), errors
+            errors.append((i, self.lb.classes_[p]))
+#             if t != p:
+#                 errors.append((i, self.lb.classes_[p]))
+#             else:
+#                 errors.append((i, self.lb.classes_[p]))
+        return metrics.f1_score(y_true, y_pred, average='weighted', pos_label=None), errors;
 
     def train(self, n_epochs=100, shuffle_batch=False):
         epoch = 0
-        print "here"
-        print len(self.data['train']['Y'])
-        print self.batch_size;
-        print len(self.data['train']['Y']) // self.batch_size
-        print "there"
+#         print "here"
+#         print len(self.data['train']['Y'])
+#         print self.batch_size;
+#         print len(self.data['train']['Y']) // self.batch_size
+#         print "there"
         n_train_batches = len(self.data['train']['Y']) // self.batch_size
         self.lr = self.init_lr
         prev_train_f1 = None
@@ -339,7 +341,8 @@ class Model:
             print indices;
             print len(indices);
             print 'epoch:', epoch, 'cost:', (total_cost / len(indices)), ' took: %d(s)' % (end_time - start_time)
-
+            writef.write('epoch:'+str(epoch));
+            writef.write('\n');
             print 'TRAIN', '=' * 40
             writef.write('TRAIN' + '=' *40)
             writef.write('\n')
@@ -347,17 +350,17 @@ class Model:
             print 'TRAIN_ERROR:', (1-train_f1)*100
             writef.write('TRAIN_ERROR:' + str((1-train_f1)*100))
             writef.write('\n')
-            if True:
-                for i, pred in train_errors:
-                    writef.write('\n')
-                    writef.write('context: '+ self.to_words(self.data['train']['C'][i]))
-                    writef.write('\n')
-                    writef.write('question: '+ self.to_words([self.data['train']['Q'][i]]))
-                    writef.write('\n')
-                    writef.write('correct answer: '+ self.data['train']['Y'][i])
-                    writef.write('\n')
-                    writef.write('predicted answer: '+ pred)
-                    writef.write('\n')
+#             if True:
+#                 for i, pred in train_errors:
+#                     writef.write('\n')
+#                     writef.write('context: '+ self.to_words(self.data['train']['C'][i]))
+#                     writef.write('\n')
+#                     writef.write('question: '+ self.to_words([self.data['train']['Q'][i]]))
+#                     writef.write('\n')
+#                     writef.write('correct answer: '+ self.data['train']['Y'][i])
+#                     writef.write('\n')
+#                     writef.write('predicted answer: '+ pred)
+#                     writef.write('\n')
 #                     print 'context: ', self.to_words(self.data['train']['C'][i])
 #                     print 'question: ', self.to_words([self.data['train']['Q'][i]])
 #                     print 'correct answer: ', self.data['train']['Y'][i]
@@ -385,6 +388,12 @@ class Model:
                         writef.write('correct answer: '+ self.data['test']['Y'][i])
                         writef.write('\n')
                         writef.write('predicted answer: '+ pred)
+                        writef.write('\n')
+                        if self.data['test']['Y'][i] == pred:
+                            AnswerStatus = True;
+                        else:
+                            AnswerStatus = False;
+                        writef.write(str(AnswerStatus))
                         writef.write('\n')
 #                         print 'context: ', self.to_words(self.data['test']['C'][i])
 #                         print 'question: ', self.to_words([self.data['test']['Q'][i]])
@@ -526,9 +535,9 @@ def main():
     print '*' * 80
     print 'args:', args
     print '*' * 80
-    args.task=10;
-    args.train_file = glob.glob('data/tasks_1-20_v1-2/hn-10k/qa%d_*train.txt' % args.task)[0]
-    args.test_file = glob.glob('data/tasks_1-20_v1-2/hn-10k/qa%d_*test.txt' % args.task)[0]
+    args.task=1;
+    args.train_file = glob.glob('data/tasks_1-20_v1-2/TempTesting/qa%d_*train.txt' % args.task)[0]
+    args.test_file = glob.glob('data/tasks_1-20_v1-2/TempTesting/qa%d_*test.txt' % args.task)[0]
 #     args.train_file = glob.glob('data/tasks_1-20_v1-2/TempTesting/qa%d_*train.txt' % args.task)[0]
 #     args.test_file = glob.glob('data/tasks_1-20_v1-2/TempTesting/qa%d_*test.txt' % args.task)[0]
 
