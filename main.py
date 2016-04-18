@@ -182,9 +182,7 @@ class Model:
         lb = LabelBinarizer()
         lb.fit(list(vocab))
         vocab = lb.classes_.tolist()
-#         change
         self.batch_size = batch_size
-#         self.batch_size = 2
         self.max_seqlen = max_seqlen
         self.max_sentlen = max_sentlen
         self.embedding_size = embedding_size
@@ -297,25 +295,14 @@ class Model:
         n_batches = len(dataset['Y']) // self.batch_size
         y_pred = np.concatenate([self.predict(dataset, i) for i in xrange(n_batches)]).astype(np.int32) - 1
         y_true = [self.vocab.index(y) for y in dataset['Y'][:len(y_pred)]]
-#         print metrics.confusion_matrix(y_true, y_pred)
-#         print metrics.classification_report(y_true, y_pred)
         errors = [];
         correct = [];
         for i, (t, p) in enumerate(zip(y_true, y_pred)):
             errors.append((i, self.lb.classes_[p]))
-#             if t != p:
-#                 errors.append((i, self.lb.classes_[p]))
-#             else:
-#                 errors.append((i, self.lb.classes_[p]))
         return metrics.f1_score(y_true, y_pred, average='weighted', pos_label=None), errors;
 
     def train(self, n_epochs=100, shuffle_batch=False):
         epoch = 0
-#         print "here"
-#         print len(self.data['train']['Y'])
-#         print self.batch_size;
-#         print len(self.data['train']['Y']) // self.batch_size
-#         print "there"
         n_train_batches = len(self.data['train']['Y']) // self.batch_size
         self.lr = self.init_lr
         prev_train_f1 = None
@@ -350,22 +337,6 @@ class Model:
             print 'TRAIN_ERROR:', (1-train_f1)*100
             writef.write('TRAIN_ERROR:' + str((1-train_f1)*100))
             writef.write('\n')
-#             if True:
-#                 for i, pred in train_errors:
-#                     writef.write('\n')
-#                     writef.write('context: '+ self.to_words(self.data['train']['C'][i]))
-#                     writef.write('\n')
-#                     writef.write('question: '+ self.to_words([self.data['train']['Q'][i]]))
-#                     writef.write('\n')
-#                     writef.write('correct answer: '+ self.data['train']['Y'][i])
-#                     writef.write('\n')
-#                     writef.write('predicted answer: '+ pred)
-#                     writef.write('\n')
-#                     print 'context: ', self.to_words(self.data['train']['C'][i])
-#                     print 'question: ', self.to_words([self.data['train']['Q'][i]])
-#                     print 'correct answer: ', self.data['train']['Y'][i]
-#                     print 'predicted answer: ', pred
-#                     print '---' * 20
 
             if prev_train_f1 is not None and train_f1 < prev_train_f1 and self.nonlinearity is None:
                 prev_weights = lasagne.layers.helper.get_all_param_values(self.network)
@@ -395,11 +366,6 @@ class Model:
                             AnswerStatus = False;
                         writef.write(str(AnswerStatus))
                         writef.write('\n')
-#                         print 'context: ', self.to_words(self.data['test']['C'][i])
-#                         print 'question: ', self.to_words([self.data['test']['Q'][i]])
-#                         print 'correct answer: ', self.data['test']['Y'][i]
-#                         print 'predicted answer: ', pred
-#                         print '---' * 20
 
             prev_train_f1 = train_f1
 
@@ -449,9 +415,7 @@ class Model:
         vocab = set()
         max_sentlen = 0
         for i, line in enumerate(lines):
-#             change
             words = line['text'].split(" ");
-#             words = nltk.word_tokenize(line['text'])
             max_sentlen = max(max_sentlen, len(words))
             for w in words:
                 vocab.add(w)
@@ -479,8 +443,6 @@ class Model:
         S, C, Q, Y = [], [], [], []
 
         for i, line in enumerate(lines):
-#             change
-#             word_indices = [word_to_idx[w] for w in nltk.word_tokenize(line['text'])]
             word_indices = [word_to_idx[w] for w in (line['text'].split(" "))]
             word_indices += [0] * (max_sentlen - len(word_indices))
             S.append(word_indices)
@@ -515,7 +477,6 @@ def str2bool(v):
 
 
 def main():
-#     nltk.download('all');
     ss_time = time.time();
     parser = argparse.ArgumentParser()
     parser.register('type', 'bool', str2bool)
@@ -538,13 +499,6 @@ def main():
     args.task=1;
     args.train_file = glob.glob('data/tasks_1-20_v1-2/TempTesting/qa%d_*train.txt' % args.task)[0]
     args.test_file = glob.glob('data/tasks_1-20_v1-2/TempTesting/qa%d_*test.txt' % args.task)[0]
-#     args.train_file = glob.glob('data/tasks_1-20_v1-2/TempTesting/qa%d_*train.txt' % args.task)[0]
-#     args.test_file = glob.glob('data/tasks_1-20_v1-2/TempTesting/qa%d_*test.txt' % args.task)[0]
-
-
-    if args.train_file == '' or args.test_file == '':
-        args.train_file = glob.glob('data/tasks_1-20_v1-2/en/qa%d_*train.txt' % args.task)[0]
-        args.test_file = glob.glob('data/tasks_1-20_v1-2/en/qa%d_*test.txt' % args.task)[0]
 
     model = Model(**args.__dict__)
     model.train(n_epochs=args.n_epochs, shuffle_batch=args.shuffle_batch)
