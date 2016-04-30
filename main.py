@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from __future__ import division
 import argparse
 import glob
@@ -17,26 +18,21 @@ import warnings
 warnings.filterwarnings('ignore', '.*topo.*')
 writef = open("qa1_single-supporting-fact_output", "wb");
 
-class InnerProductLayer(lasagne.layers.MergeLayer):
+suffixes = {
+    1: ["ो", "े", "ू", "ु", "ी", "ि", "ा"],
+    2: ["कर", "ाओ", "िए", "ाई", "ाए", "ने", "नी", "ना", "ते", "ीं", "ती", "ता", "ाँ", "ां", "ों", "ें"],
+    3: ["ाकर", "ाइए", "ाईं", "ाया", "ेगी", "ेगा", "ोगी", "ोगे", "ाने", "ाना", "ाते", "ाती", "ाता", "तीं", "ाओं", "ाएं", "ुओं", "ुएं", "ुआं"],
+    4: ["ाएगी", "ाएगा", "ाओगी", "ाओगे", "एंगी", "ेंगी", "एंगे", "ेंगे", "ूंगी", "ूंगा", "ातीं", "नाओं", "नाएं", "ताओं", "ताएं", "ियाँ", "ियों", "ियां"],
+    5: ["ाएंगी", "ाएंगे", "ाऊंगी", "ाऊंगा", "ाइयाँ", "ाइयों", "ाइयां"],
+}
 
-    def __init__(self, incomings, nonlinearity=None, **kwargs):
-        super(InnerProductLayer, self).__init__(incomings, **kwargs)
-        self.nonlinearity = nonlinearity
-        if len(incomings) != 2:
-            raise NotImplementedError
-
-    def get_output_shape_for(self, input_shapes):
-        return input_shapes[0][:2]
-
-    def get_output_for(self, inputs, **kwargs):
-        M = inputs[0]
-        u = inputs[1]
-        output = T.batched_dot(M, u)
-        if self.nonlinearity is not None:
-            output = self.nonlinearity(output)
-        return output
-
-
+def hi_stem(word):
+    for L in 5, 4, 3, 2, 1:
+        if len(word) > L + 1:
+            for suf in suffixes[L]:
+                if word.endswith(suf):
+                    return word[:-L]
+    return word
 class BatchedDotLayer(lasagne.layers.MergeLayer):
 
     def __init__(self, incomings, **kwargs):
@@ -49,6 +45,11 @@ class BatchedDotLayer(lasagne.layers.MergeLayer):
 
     def get_output_for(self, inputs, **kwargs):
         return T.batched_dot(inputs[0], inputs[1])
+    
+    def hasNumbers(inputString):
+	return bool(re.search(r'\d', inputString))
+
+
 
 
 class SumLayer(lasagne.layers.Layer):
@@ -62,7 +63,26 @@ class SumLayer(lasagne.layers.Layer):
 
     def get_output_for(self, input, **kwargs):
         return T.sum(input, axis=self.axis)
+    def hasNumbers(inputString):
+	return bool(re.search(r'\d', inputString))
 
+    def getVerbTag(line):
+	   verb = ''
+	   tag = ''
+	   hin = nltk.corpus.indian.tagged_words()
+	   if line not in '\t':
+		  line = line.split()
+		  verb = line[len(line)-1]
+		  verb = verb.replace(".","")
+		  verb = verb.replace("\n","")
+		  if not hasNumbers(verb):
+			for h in hin:
+				tag = h[0]
+				tag = h[0]
+				if verb == tag:
+					return h[1]
+	   else:
+		  return 'NA'
 
 class TemporalEncodingLayer(lasagne.layers.Layer):
 
@@ -286,7 +306,26 @@ class Model:
         self.set_zero(self.zero_vec)
         for l in self.mem_layers:
             l.reset_zero()
+    def hasNumbers(inputString):
+	return bool(re.search(r'\d', inputString))
 
+    def getVerbTag(line):
+	   verb = ''
+	   tag = ''
+	   hin = nltk.corpus.indian.tagged_words()
+	   if line not in '\t':
+		  line = line.split()
+		  verb = line[len(line)-1]
+		  verb = verb.replace(".","")
+		  verb = verb.replace("\n","")
+		  if not hasNumbers(verb):
+			 for h in hin:
+				tag = h[0]
+				tag = h[0]
+				if verb == tag:
+					return h[1]
+	   else:
+		  return 'NA'
     def predict(self, dataset, index):
         self.set_shared_variables(dataset, index)
         return self.compute_pred()
@@ -410,7 +449,22 @@ class Model:
         self.a_shared.set_value(y)
         self.c_pe_shared.set_value(c_pe)
         self.q_pe_shared.set_value(q_pe)
+        
+    def process_dataset(self, lines, word_to_idx, max_sentlen, offset):
+        S, C, Q, Y = [], [], [], []
 
+        for i, line in enumerate(lines):
+            word_indices = [word_to_idx[w] for w in (line['text'].split(" "))]
+            word_indices += [0] * (max_sentlen - len(word_indices))
+            S.append(word_indices)
+            if line['type'] == 'q':
+                id = line['id']-1
+                indices = [offset+idx+1 for idx in range(i-id, i) if lines[idx]['type'] == 's'][::-1][:50]
+                line['refs'] = [indices.index(offset+i+1-id+ref) for ref in line['refs']]
+                C.append(indices)
+                Q.append(offset+i+1)
+                Y.append(line['answer'])
+        return np.array(S, dtype=np.int32), np.array(C), np.array(Q, dtype=np.int32), np.array(Y)
     def get_vocab(self, lines):
         vocab = set()
         max_sentlen = 0
@@ -439,22 +493,6 @@ class Model:
 
         return vocab, word_to_idx, idx_to_word, max_seqlen, max_sentlen
 
-    def process_dataset(self, lines, word_to_idx, max_sentlen, offset):
-        S, C, Q, Y = [], [], [], []
-
-        for i, line in enumerate(lines):
-            word_indices = [word_to_idx[w] for w in (line['text'].split(" "))]
-            word_indices += [0] * (max_sentlen - len(word_indices))
-            S.append(word_indices)
-            if line['type'] == 'q':
-                id = line['id']-1
-                indices = [offset+idx+1 for idx in range(i-id, i) if lines[idx]['type'] == 's'][::-1][:50]
-                line['refs'] = [indices.index(offset+i+1-id+ref) for ref in line['refs']]
-                C.append(indices)
-                Q.append(offset+i+1)
-                Y.append(line['answer'])
-        return np.array(S, dtype=np.int32), np.array(C), np.array(Q, dtype=np.int32), np.array(Y)
-
     def get_lines(self, fname):
         lines = []
         for i, line in enumerate(open(fname)):
@@ -475,36 +513,75 @@ class Model:
 def str2bool(v):
     return v.lower() in ('yes', 'true', 't', '1')
 
+class InnerProductLayer(lasagne.layers.MergeLayer):
 
+    def __init__(self, incomings, nonlinearity=None, **kwargs):
+        super(InnerProductLayer, self).__init__(incomings, **kwargs)
+        self.nonlinearity = nonlinearity
+        if len(incomings) != 2:
+            raise NotImplementedError
+
+    def get_output_shape_for(self, input_shapes):
+        return input_shapes[0][:2]
+
+    def get_output_for(self, inputs, **kwargs):
+        M = inputs[0]
+        u = inputs[1]
+        output = T.batched_dot(M, u)
+        if self.nonlinearity is not None:
+            output = self.nonlinearity(output)
+        return output
+def hasNumbers(inputString):
+	return bool(re.search(r'\d', inputString))
+
+def getVerbTag(line):
+	verb = ''
+	tag = ''
+	hin = nltk.corpus.indian.tagged_words()
+	if line not in '\t':
+		line = line.split()
+		verb = line[len(line)-1]
+		verb = verb.replace(".","")
+		verb = verb.replace("\n","")
+		if not hasNumbers(verb):
+			for h in hin:
+				tag = h[0]
+				tag = h[0]
+				if verb == tag:
+					return h[1]
+	else:
+		return 'NA'
 def main():
-    ss_time = time.time();
-    parser = argparse.ArgumentParser()
-    parser.register('type', 'bool', str2bool)
-    parser.add_argument('--task', type=int, default=1, help='Task#')
-    parser.add_argument('--train_file', type=str, default='', help='Train file')
-    parser.add_argument('--test_file', type=str, default='', help='Test file')
-    parser.add_argument('--batch_size', type=int, default=32, help='Batch size')
-    parser.add_argument('--embedding_size', type=int, default=20, help='Embedding size')
-    parser.add_argument('--max_norm', type=float, default=40.0, help='Max norm')
-    parser.add_argument('--lr', type=float, default=0.01, help='Learning rate')
-    parser.add_argument('--num_hops', type=int, default=3, help='Num hops')
-    parser.add_argument('--adj_weight_tying', type='bool', default=True, help='Whether to use adjacent weight tying')
-    parser.add_argument('--linear_start', type='bool', default=False, help='Whether to start with linear activations')
-    parser.add_argument('--shuffle_batch', type='bool', default=True, help='Whether to shuffle minibatches')
-    parser.add_argument('--n_epochs', type=int, default=100, help='Num epochs')
-    args = parser.parse_args()
+    time_requiredStart = time.time();
+    inputarguments = argparse.ArgumentParser()
+    inputarguments.register('type', 'bool', str2bool)
+    inputarguments.add_argument('--task', type=int, default=1, help='Task#')
+    inputarguments.add_argument('--train_file', type=str, default='', help='Train file')
+    inputarguments.add_argument('--test_file', type=str, default='', help='Test file')
+    inputarguments.add_argument('--batch_size', type=int, default=32, help='Batch size')
+    inputarguments.add_argument('--embedding_size', type=int, default=20, help='Embedding size')
+    inputarguments.add_argument('--max_norm', type=float, default=40.0, help='Max norm')
+    inputarguments.add_argument('--lr', type=float, default=0.01, help='Learning rate')
+    inputarguments.add_argument('--num_hops', type=int, default=3, help='Num hops')
+    inputarguments.add_argument('--adj_weight_tying', type='bool', default=True, help='Whether to use adjacent weight tying')
+    inputarguments.add_argument('--linear_start', type='bool', default=False, help='Whether to start with linear activations')
+    inputarguments.add_argument('--shuffle_batch', type='bool', default=True, help='Whether to shuffle minibatches')
+    inputarguments.add_argument('--n_epochs', type=int, default=100, help='Num epochs')
+    args = inputarguments.parse_args()
     print '*' * 80
     print 'args:', args
     print '*' * 80
     args.task=1;
-    args.train_file = glob.glob('data/tasks_1-20_v1-2/TempTesting/qa%d_*train.txt' % args.task)[0]
-    args.test_file = glob.glob('data/tasks_1-20_v1-2/TempTesting/qa%d_*test.txt' % args.task)[0]
+    args.train_file ='data/en/qa1_single-supporting-fact_train.txt'
+    args.test_file = 'data/en/qa1_single-supporting-fact_test.txt'
+#    args.train_file = glob.glob('data/en/qa1_single-supporting-fact_train.txt' % args.task)[0]
+#    args.test_file = glob.glob('data/en/qa1_single-supporting-fact_test.txt' % args.task)[0]
 
     model = Model(**args.__dict__)
     model.train(n_epochs=args.n_epochs, shuffle_batch=args.shuffle_batch)
     
-    ee_time = time.time();
-    print "Time is:"+ str(ee_time-ss_time) + "seconds";
+    time_requiredEnd = time.time();
+    print "Time is:"+ str(time_requiredEnd-time_requiredStart) + "seconds";
 
 if __name__ == '__main__':
     main()
